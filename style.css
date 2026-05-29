@@ -417,13 +417,15 @@ tbody td { padding: 13px 20px; color: var(--text-primary); white-space: nowrap; 
 
 .date-hidden {
   position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 1px;
-  height: 1px;
-  right: 0;
+  visibility: hidden;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  border: none;
+  padding: 0;
+  margin: 0;
+  right: 36px;
   top: 50%;
-  transform: translateY(-50%);
 }
 
 .cal-icon {
