@@ -6,33 +6,43 @@
 // ─── State ────────────────────────────────────────────────
 let tableData = [];
 
+// ─── Thai Month Abbreviations ──────────────────────────────
+const THAI_MONTHS = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+];
+
 // ─── Helpers ───────────────────────────────────────────────
 
-/**
- * Format date to Thai Buddhist Era string (DD/MM/YYYY)
- * @param {Date} d
- * @returns {string} e.g. "22/05/2569"
- */
 function formatDateTH(d) {
   const day = String(d.getDate()).padStart(2, '0');
-  const mon = String(d.getMonth() + 1).padStart(2, '0'); // เปลี่ยนเป็นตัวเลขเดือน 01-12
+  const mon = THAI_MONTHS[d.getMonth()];
   const year = d.getFullYear() + 543;
-  return `${day}/${mon}/${year}`;
+  return `${day} ${mon} ${year}`;
 }
 
-/**
- * Format date to international English string (DD/MM/YYYY)
- * @param {Date} d
- * @returns {string} e.g. "22/05/2026"
- */
 function formatDateEN(d) {
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-/**
- * Add months safely — clamp to last day of month if target day doesn't exist
- * e.g. Jan 29 + 1 month = Feb 28 (not Mar 1)
- */
+function formatDMY(d) {
+  const dd   = String(d.getDate()).padStart(2, '0');
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function parseDMY(str) {
+  // Accept DD/MM/YYYY
+  const parts = str.split('/');
+  if (parts.length !== 3) return null;
+  const dd = parseInt(parts[0]), mm = parseInt(parts[1]), yyyy = parseInt(parts[2]);
+  if (!dd || !mm || !yyyy || yyyy < 2000) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  if (d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
+  return d;
+}
+
 function addMonthsSafe(date, months) {
   const originalDay = date.getDate();
   const d = new Date(date.getFullYear(), date.getMonth() + months, 1);
@@ -41,12 +51,6 @@ function addMonthsSafe(date, months) {
   return d;
 }
 
-/**
- * Add a period to a date based on period type
- * @param {Date} date
- * @param {string} type - 'monthly' | 'weekly' | 'quarterly' | 'bimonthly' | 'yearly'
- * @returns {Date}
- */
 function addPeriod(date, type) {
   switch (type) {
     case 'monthly':   return addMonthsSafe(date, 1);
@@ -58,11 +62,6 @@ function addPeriod(date, type) {
   }
 }
 
-/**
- * Format number as Thai currency string
- * @param {number} num
- * @returns {string}
- */
 function formatCurrency(num) {
   return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -70,14 +69,14 @@ function formatCurrency(num) {
 // ─── Main Calculate Function ───────────────────────────────
 
 function calculate() {
-  const startVal     = document.getElementById('start-date').value;
+  const displayVal   = document.getElementById('date-display').value;
+  const startDate    = parseDMY(displayVal);
   const installments = parseInt(document.getElementById('installments').value);
   const periodType   = document.getElementById('period-type').value;
   const amount       = parseFloat(document.getElementById('amount').value) || 0;
 
-  // Validation
-  if (!startVal) {
-    alert('กรุณาเลือกวันที่ดิวเดทเริ่มต้น');
+  if (!startDate) {
+    alert('กรุณากรอกวันที่ให้ถูกต้อง (DD/MM/YYYY)');
     return;
   }
   if (!installments || installments < 1 || installments > 360) {
@@ -85,17 +84,16 @@ function calculate() {
     return;
   }
 
-  // Build table data
   tableData = [];
-  let current = new Date(startVal);
+  let current = new Date(startDate);
 
   for (let i = 1; i <= installments; i++) {
     tableData.push({
       installment: i,
-      dateTH: formatDateTH(current),
-      dateEN: formatDateEN(current),
+      dateTH:  formatDateTH(current),
+      dateEN:  formatDateEN(current),
       rawDate: new Date(current),
-      amount: amount,
+      amount:  amount,
     });
     current = addPeriod(current, periodType);
   }
@@ -104,7 +102,7 @@ function calculate() {
   renderTable(amount);
 
   document.getElementById('export-btn').style.display = 'flex';
-  document.getElementById('clear-btn').style.display = 'flex';
+  document.getElementById('clear-btn').style.display  = 'flex';
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('result-section').style.display = 'block';
 }
@@ -112,9 +110,9 @@ function calculate() {
 // ─── Render: Summary Cards ─────────────────────────────────
 
 function renderSummary(installments, amount) {
-  document.getElementById('s-total').textContent  = installments + ' งวด';
-  document.getElementById('s-first').textContent  = tableData[0].dateTH;
-  document.getElementById('s-last').textContent   = tableData[tableData.length - 1].dateTH;
+  document.getElementById('s-total').textContent = installments + ' งวด';
+  document.getElementById('s-first').textContent = tableData[0].dateTH;
+  document.getElementById('s-last').textContent  = tableData[tableData.length - 1].dateTH;
 
   const totalCard = document.getElementById('s-total-card');
   if (amount > 0) {
@@ -123,7 +121,6 @@ function renderSummary(installments, amount) {
   } else {
     totalCard.style.display = 'none';
   }
-
   document.getElementById('summary-section').style.display = 'grid';
 }
 
@@ -149,64 +146,75 @@ function renderTable(amount) {
 
 function exportExcel() {
   if (!tableData.length) return;
-
-  const amount = tableData[0].amount;
-
-  // Build worksheet data
+  const amount  = tableData[0].amount;
   const headers = ['งวดที่', 'วันที่ (พ.ศ.)', 'วันที่ (ค.ศ.)', 'วันที่ (Excel)'];
   if (amount > 0) headers.push('จำนวนเงิน (บาท)');
 
   const rows = tableData.map(r => {
-    // ปรับให้ r.dateEN (ฟอร์แมต DD/MM/YYYY) ลงช่อง Excel เพื่อความถูกต้องและอ่านง่าย
-    const row = [r.installment, r.dateTH, r.dateEN, r.dateEN]; 
+    const row = [r.installment, r.dateTH, r.dateEN, r.rawDate];
     if (amount > 0) row.push(r.amount);
     return row;
   });
+  if (amount > 0) rows.push(['', '', '', 'รวมทั้งหมด', amount * tableData.length]);
 
-  if (amount > 0) {
-    rows.push(['', '', '', 'รวมทั้งหมด', amount * tableData.length]);
-  }
-
-  const wsData = [headers, ...rows];
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  // Column widths
-  ws['!cols'] = [
-    { wch: 8 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-  ];
-
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [{wch:8},{wch:18},{wch:18},{wch:18},{wch:18}];
   XLSX.utils.book_append_sheet(wb, ws, 'ตารางงวด');
 
   const today    = new Date().toISOString().slice(0, 10);
   const filename = `due_dates_${tableData.length}งวด_${today}.xlsx`;
-
   XLSX.writeFile(wb, filename);
 }
 
 // ─── Clear All ─────────────────────────────────────────────
 
 function clearAll() {
-  document.getElementById('start-date').valueAsDate = new Date();
-  document.getElementById('installments').value = '12';
-  document.getElementById('period-type').value = 'monthly';
-  document.getElementById('amount').value = '';
-
+  const today = new Date();
+  document.getElementById('date-display').value  = formatDMY(today);
+  document.getElementById('start-date').value    = today.toISOString().slice(0, 10);
+  document.getElementById('installments').value  = '12';
+  document.getElementById('period-type').value   = 'monthly';
+  document.getElementById('amount').value        = '';
   tableData = [];
 
   document.getElementById('summary-section').style.display = 'none';
-  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('result-section').style.display  = 'none';
   document.getElementById('export-btn').style.display = 'none';
-  document.getElementById('clear-btn').style.display = 'none';
+  document.getElementById('clear-btn').style.display  = 'none';
   document.getElementById('empty-state').style.display = 'block';
 }
 
 // ─── Init ──────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('start-date').valueAsDate = new Date();
+  const today      = new Date();
+  const hiddenInput = document.getElementById('start-date');
+  const display     = document.getElementById('date-display');
+
+  // Set today as default
+  hiddenInput.value = today.toISOString().slice(0, 10);
+  display.value     = formatDMY(today);
+
+  // Calendar picker → update display box
+  hiddenInput.addEventListener('change', function () {
+    if (!this.value) return;
+    const [y, m, d] = this.value.split('-');
+    display.value = `${d}/${m}/${y}`;
+  });
+
+  // Manual typing in display box → auto-format as DD/MM/YYYY
+  display.addEventListener('input', function () {
+    let v = this.value.replace(/[^0-9]/g, '');
+    if (v.length > 2)  v = v.slice(0, 2) + '/' + v.slice(2);
+    if (v.length > 5)  v = v.slice(0, 5) + '/' + v.slice(5);
+    if (v.length > 10) v = v.slice(0, 10);
+    this.value = v;
+
+    // Sync hidden date if complete
+    const parsed = parseDMY(v);
+    if (parsed) {
+      hiddenInput.value = parsed.toISOString().slice(0, 10);
+    }
+  });
 });
