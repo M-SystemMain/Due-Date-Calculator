@@ -6,33 +6,39 @@
 // ─── State ────────────────────────────────────────────────
 let tableData = [];
 
-// ─── Thai Month Abbreviations ──────────────────────────────
-const THAI_MONTHS = [
-  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
-];
-
 // ─── Helpers ───────────────────────────────────────────────
 
 /**
- * Format date to Thai Buddhist Era string
+ * Format date to Thai Buddhist Era string (DD/MM/YYYY)
  * @param {Date} d
- * @returns {string} e.g. "01 ม.ค. 2568"
+ * @returns {string} e.g. "22/05/2569"
  */
 function formatDateTH(d) {
   const day = String(d.getDate()).padStart(2, '0');
-  const mon = THAI_MONTHS[d.getMonth()];
+  const mon = String(d.getMonth() + 1).padStart(2, '0'); // เปลี่ยนเป็นตัวเลขเดือน 01-12
   const year = d.getFullYear() + 543;
-  return `${day} ${mon} ${year}`;
+  return `${day}/${mon}/${year}`;
 }
 
 /**
- * Format date to international English string
+ * Format date to international English string (DD/MM/YYYY)
  * @param {Date} d
- * @returns {string} e.g. "01 Jan 2025"
+ * @returns {string} e.g. "22/05/2026"
  */
 function formatDateEN(d) {
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/**
+ * Add months safely — clamp to last day of month if target day doesn't exist
+ * e.g. Jan 29 + 1 month = Feb 28 (not Mar 1)
+ */
+function addMonthsSafe(date, months) {
+  const originalDay = date.getDate();
+  const d = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(originalDay, lastDay));
+  return d;
 }
 
 /**
@@ -42,15 +48,14 @@ function formatDateEN(d) {
  * @returns {Date}
  */
 function addPeriod(date, type) {
-  const d = new Date(date);
   switch (type) {
-    case 'monthly':    d.setMonth(d.getMonth() + 1);       break;
-    case 'weekly':     d.setDate(d.getDate() + 7);         break;
-    case 'quarterly':  d.setMonth(d.getMonth() + 3);       break;
-    case 'bimonthly':  d.setMonth(d.getMonth() + 2);       break;
-    case 'yearly':     d.setFullYear(d.getFullYear() + 1); break;
+    case 'monthly':   return addMonthsSafe(date, 1);
+    case 'weekly':    { const d = new Date(date); d.setDate(d.getDate() + 7); return d; }
+    case 'quarterly': return addMonthsSafe(date, 3);
+    case 'bimonthly': return addMonthsSafe(date, 2);
+    case 'yearly':    return addMonthsSafe(date, 12);
+    default:          return new Date(date);
   }
-  return d;
 }
 
 /**
@@ -99,6 +104,7 @@ function calculate() {
   renderTable(amount);
 
   document.getElementById('export-btn').style.display = 'flex';
+  document.getElementById('clear-btn').style.display = 'flex';
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('result-section').style.display = 'block';
 }
@@ -151,7 +157,8 @@ function exportExcel() {
   if (amount > 0) headers.push('จำนวนเงิน (บาท)');
 
   const rows = tableData.map(r => {
-    const row = [r.installment, r.dateTH, r.dateEN, r.rawDate];
+    // ปรับให้ r.dateEN (ฟอร์แมต DD/MM/YYYY) ลงช่อง Excel เพื่อความถูกต้องและอ่านง่าย
+    const row = [r.installment, r.dateTH, r.dateEN, r.dateEN]; 
     if (amount > 0) row.push(r.amount);
     return row;
   });
@@ -179,6 +186,23 @@ function exportExcel() {
   const filename = `due_dates_${tableData.length}งวด_${today}.xlsx`;
 
   XLSX.writeFile(wb, filename);
+}
+
+// ─── Clear All ─────────────────────────────────────────────
+
+function clearAll() {
+  document.getElementById('start-date').valueAsDate = new Date();
+  document.getElementById('installments').value = '12';
+  document.getElementById('period-type').value = 'monthly';
+  document.getElementById('amount').value = '';
+
+  tableData = [];
+
+  document.getElementById('summary-section').style.display = 'none';
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('export-btn').style.display = 'none';
+  document.getElementById('clear-btn').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'block';
 }
 
 // ─── Init ──────────────────────────────────────────────────
